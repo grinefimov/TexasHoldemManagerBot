@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29519.87
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TexasHoldemManagerBot", "TexasHoldemManagerBot\TexasHoldemManagerBot.csproj", "{599CD6D7-6083-484B-9DE3-696C8EB45253}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{599CD6D7-6083-484B-9DE3-696C8EB45253}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{599CD6D7-6083-484B-9DE3-696C8EB45253}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{599CD6D7-6083-484B-9DE3-696C8EB45253}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{599CD6D7-6083-484B-9DE3-696C8EB45253}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {5E10CAB6-3359-492A-AC63-D3FD964AC915}
+	EndGlobalSection
+EndGlobal
