@@ -6,11 +6,27 @@ namespace TexasHoldemManagerBot
     {
         public List<Player> Players { get; set; }
         public uint Pot { get; set; } = 0;
+        public uint SmallBlind { get; set; } = 0;
+        public uint BigBlind { get; set; } = 0;
 
 
         public TexasHoldemGame()
         {
             Players = new List<Player>();
+        }
+
+        public void SetBlinds(uint amount)
+        {
+            SmallBlind = amount;
+            BigBlind = amount * 2;
+        }
+
+        public void Restart()
+        {
+            Players = new List<Player>();
+            Pot = 0;
+            SmallBlind = 0;
+            BigBlind = 0;
         }
 
         public class Player
@@ -19,8 +35,7 @@ namespace TexasHoldemManagerBot
             public uint Bankroll { get; set; } = 0;
             public uint TotalBet { get; set; } = 0;
             public PlayerState State { get; set; } = PlayerState.Ready;
-
-
+            
             public Player(string name)
             {
                 Name = name;
@@ -49,13 +64,6 @@ namespace TexasHoldemManagerBot
             public void Fold()
             {
                 State = PlayerState.Fold;
-            }
-
-            public void Reset()
-            {
-                Bankroll = 0;
-                TotalBet = 0;
-                State = PlayerState.Ready;
             }
 
             public enum PlayerState { Ready, Call, Bet, Fold };
