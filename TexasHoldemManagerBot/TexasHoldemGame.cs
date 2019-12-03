@@ -5,9 +5,9 @@ namespace TexasHoldemManagerBot
     internal class TexasHoldemGame
     {
         public List<Player> Players { get; set; }
-        public uint Pot { get; set; } = 0;
-        public uint SmallBlind { get; set; } = 0;
-        public uint BigBlind { get; set; } = 0;
+        public uint Pot { get; set; }
+        public uint SmallBlind { get; set; }
+        public uint BigBlind { get; set; }
 
 
         public TexasHoldemGame()
@@ -32,8 +32,8 @@ namespace TexasHoldemManagerBot
         public class Player
         {
             public string Name { get; set; }
-            public uint Bankroll { get; set; } = 0;
-            public uint TotalBet { get; set; } = 0;
+            public uint Bankroll { get; set; }
+            public uint TotalBet { get; set; }
             public PlayerState State { get; set; } = PlayerState.Ready;
             
             public Player(string name)

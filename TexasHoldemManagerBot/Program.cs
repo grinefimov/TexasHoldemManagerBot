@@ -18,7 +18,9 @@ namespace TexasHoldemManagerBot
         private static readonly TelegramBotClient Bot =
             new TelegramBotClient("1069876513:AAHCGIcCg0-SV8pqD18GX9yJLi7YRjC39JU");
 
-        private static TexasHoldemGame Game { get; set; } = new TexasHoldemGame();
+        private static TexasHoldemGame Game { get; set; }
+
+        private static bool _active;
 
         private static void Main(string[] args)
         {
@@ -48,11 +50,19 @@ namespace TexasHoldemManagerBot
             {
                 var message = messageEventArgs.Message;
                 if (message == null || message.Type != MessageType.Text) return;
+                if (message.Text.ToLower() == "start")
+                {
+                    Game = new TexasHoldemGame();
+                    _active = true;
+                    await Bot.SendTextMessageAsync(message.Chat.Id, "Game started");
+                }
+                if (!_active) return;
                 var messageText = message.Text.Split(' ');
                 for (var i = 1; i < messageText.Length; i++)
                 {
                     messageText[i] = messageText[i].ToLower();
                 }
+
                 var player = Game.Players.FirstOrDefault(p => p.Name == messageText[0]);
                 if (player != null)
                 {
@@ -104,13 +114,14 @@ namespace TexasHoldemManagerBot
                                             $"{player.Name} bets {moneyToBetPot}");
                                         break;
                                 }
+
                                 if (!int.TryParse(messageText[2], out var moneyToBet)) break;
-                                if ((int)Game.Pot + moneyToBet >= 0 && player.Bankroll - moneyToBet >= 0)
+                                if ((int) Game.Pot + moneyToBet >= 0 && player.Bankroll - moneyToBet >= 0)
                                 {
-                                    if ((int)player.TotalBet + moneyToBet >= 0)
+                                    if ((int) player.TotalBet + moneyToBet >= 0)
                                     {
-                                        player.Bet((uint)moneyToBet);
-                                        Game.Pot += (uint)moneyToBet;
+                                        player.Bet((uint) moneyToBet);
+                                        Game.Pot += (uint) moneyToBet;
                                     }
                                     else
                                         player.TotalBet = 0;
@@ -118,6 +129,7 @@ namespace TexasHoldemManagerBot
                                     await Bot.SendTextMessageAsync(message.Chat.Id,
                                         $"{player.Name} bets {moneyToBet}");
                                 }
+
                                 break;
 
                             case "win":
@@ -136,16 +148,18 @@ namespace TexasHoldemManagerBot
                                     moneyToWin = Game.Pot;
                                     Game.Pot = 0;
                                 }
+
                                 foreach (var p in Game.Players)
                                 {
                                     p.Ready();
                                 }
+
                                 await Bot.SendTextMessageAsync(message.Chat.Id,
                                     $"{player.Name} wins {moneyToWin}");
                                 break;
 
                             case "all-in":
-                                var moneyToAllIn = player.Bankroll; 
+                                var moneyToAllIn = player.Bankroll;
                                 player.Bet(moneyToAllIn);
                                 Game.Pot += moneyToAllIn;
 
@@ -156,8 +170,8 @@ namespace TexasHoldemManagerBot
                             case "add":
                                 if (messageText.Length < 4 || messageText[2] != "money") break;
                                 if (!int.TryParse(messageText[3], out var moneyToAdd)) break;
-                                if ((int)player.Bankroll + moneyToAdd >= 0)
-                                    player.Bankroll += (uint)moneyToAdd;
+                                if ((int) player.Bankroll + moneyToAdd >= 0)
+                                    player.Bankroll += (uint) moneyToAdd;
                                 else
                                     player.Bankroll = 0;
                                 await Bot.SendTextMessageAsync(message.Chat.Id,
@@ -181,13 +195,14 @@ namespace TexasHoldemManagerBot
                                 case "player":
                                     if (messageText.Length < 3) break;
                                     var name = messageText[2].Length > 12
-                                            ? messageText[2].Substring(0, 12)
-                                            : messageText[2];
+                                        ? messageText[2].Substring(0, 12)
+                                        : messageText[2];
                                     if (Game.Players.FirstOrDefault(p => p.Name == name) != null)
                                     {
                                         await Bot.SendTextMessageAsync(message.Chat.Id, $"{name} already exist");
                                         break;
                                     }
+
                                     Game.Players.Add(new TexasHoldemGame.Player(name));
                                     await Bot.SendTextMessageAsync(message.Chat.Id, $"Player {name} added");
                                     break;
@@ -197,15 +212,17 @@ namespace TexasHoldemManagerBot
                                     if (!int.TryParse(messageText[2], out var moneyToAdd)) break;
                                     foreach (var p in Game.Players)
                                     {
-                                        if ((int)p.Bankroll + moneyToAdd >= 0)
-                                            p.Bankroll += (uint)moneyToAdd;
+                                        if ((int) p.Bankroll + moneyToAdd >= 0)
+                                            p.Bankroll += (uint) moneyToAdd;
                                         else
                                             p.Bankroll = 0;
                                     }
+
                                     await Bot.SendTextMessageAsync(message.Chat.Id,
                                         $"Each player gets {moneyToAdd}");
                                     break;
                             }
+
                             break;
 
                         case "remove":
@@ -215,9 +232,11 @@ namespace TexasHoldemManagerBot
                                 case "player":
                                     if (messageText.Length < 3) break;
                                     Game.Players.Remove(Game.Players.FirstOrDefault(p => p.Name == messageText[2]));
-                                    await Bot.SendTextMessageAsync(message.Chat.Id, $"Player {messageText[2]} removed");
+                                    await Bot.SendTextMessageAsync(message.Chat.Id,
+                                        $"Player {messageText[2]} removed");
                                     break;
                             }
+
                             break;
 
                         case "set":
@@ -229,6 +248,11 @@ namespace TexasHoldemManagerBot
                         case "restart":
                             Game.Restart();
                             await Bot.SendTextMessageAsync(message.Chat.Id, "New game started");
+                            break;
+
+                        case "stop":
+                            _active = false;
+                            await Bot.SendTextMessageAsync(message.Chat.Id, "Game stopped");
                             break;
 
                         case "/help":
