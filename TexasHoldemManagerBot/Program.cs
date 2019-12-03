@@ -58,10 +58,6 @@ namespace TexasHoldemManagerBot
                 }
                 if (!_active) return;
                 var messageText = message.Text.Split(' ');
-                for (var i = 1; i < messageText.Length; i++)
-                {
-                    messageText[i] = messageText[i].ToLower();
-                }
 
                 var player = Game.Players.FirstOrDefault(p => p.Name == messageText[0]);
                 if (player != null)
@@ -74,7 +70,7 @@ namespace TexasHoldemManagerBot
                     }
                     else
                     {
-                        switch (messageText[1])
+                        switch (messageText[1].ToLower())
                         {
                             case "fold":
                                 player.State = TexasHoldemGame.Player.PlayerState.Fold;
@@ -90,28 +86,18 @@ namespace TexasHoldemManagerBot
                                 Game.Pot += moneyToCall;
 
                                 await Bot.SendTextMessageAsync(message.Chat.Id,
-                                    $"{player.Name} calls {moneyToCall}");
+                                    $"{player.Name} calls {moneyToCall} ({player.TotalBet}) Total Pot: {Game.Pot}");
                                 break;
 
                             case "bet":
                                 if (messageText.Length < 3) break;
-                                switch (messageText[2])
+                                switch (messageText[2].ToLower())
                                 {
-                                    case "Half":
-                                        var moneyToBetHalf = Game.Pot / 2;
-                                        player.Bet(moneyToBetHalf);
-                                        Game.Pot += moneyToBetHalf;
-
-                                        await Bot.SendTextMessageAsync(message.Chat.Id,
-                                            $"{player.Name} bets {moneyToBetHalf}");
+                                    case "half":
+                                        messageText[2] = (Game.Pot / 2).ToString();
                                         break;
-                                    case "Pot":
-                                        var moneyToBetPot = Game.Pot;
-                                        player.Bet(moneyToBetPot);
-                                        Game.Pot += moneyToBetPot;
-
-                                        await Bot.SendTextMessageAsync(message.Chat.Id,
-                                            $"{player.Name} bets {moneyToBetPot}");
+                                    case "pot":
+                                        messageText[2] = Game.Pot.ToString();
                                         break;
                                 }
 
@@ -126,10 +112,17 @@ namespace TexasHoldemManagerBot
                                     else
                                         player.TotalBet = 0;
 
-                                    await Bot.SendTextMessageAsync(message.Chat.Id,
-                                        $"{player.Name} bets {moneyToBet}");
+                                    if (player.Bankroll == 0)
+                                    {
+                                        await Bot.SendTextMessageAsync(message.Chat.Id,
+                                            $"{player.Name} all-in {moneyToBet} ({player.TotalBet}) Total Pot: {Game.Pot}");
+                                    }
+                                    else
+                                    {
+                                        await Bot.SendTextMessageAsync(message.Chat.Id,
+                                            $"{player.Name} bets {moneyToBet} ({player.TotalBet}) Total Pot: {Game.Pot}");
+                                    }
                                 }
-
                                 break;
 
                             case "win":
@@ -164,11 +157,11 @@ namespace TexasHoldemManagerBot
                                 Game.Pot += moneyToAllIn;
 
                                 await Bot.SendTextMessageAsync(message.Chat.Id,
-                                    $"{player.Name} all-in {moneyToAllIn}");
+                                    $"{player.Name} all-in {moneyToAllIn} ({player.TotalBet}) Total Pot: {Game.Pot}");
                                 break;
 
                             case "add":
-                                if (messageText.Length < 4 || messageText[2] != "money") break;
+                                if (messageText.Length < 4 || messageText[2].ToLower() != "money") break;
                                 if (!int.TryParse(messageText[3], out var moneyToAdd)) break;
                                 if ((int) player.Bankroll + moneyToAdd >= 0)
                                     player.Bankroll += (uint) moneyToAdd;
@@ -182,15 +175,14 @@ namespace TexasHoldemManagerBot
                 }
                 else
                 {
-                    messageText[0] = messageText[0].ToLower();
-                    switch (messageText[0])
+                    switch (messageText[0].ToLower())
                     {
                         case "info":
                             await SendInfo(message);
                             break;
                         case "add":
                             if (messageText.Length < 2) break;
-                            switch (messageText[1])
+                            switch (messageText[1].ToLower())
                             {
                                 case "player":
                                     if (messageText.Length < 3) break;
@@ -208,7 +200,7 @@ namespace TexasHoldemManagerBot
                                     break;
 
                                 case "money":
-                                    if (messageText.Length < 3 && messageText[1] != "money") break;
+                                    if (messageText.Length < 3) break;
                                     if (!int.TryParse(messageText[2], out var moneyToAdd)) break;
                                     foreach (var p in Game.Players)
                                     {
@@ -227,7 +219,7 @@ namespace TexasHoldemManagerBot
 
                         case "remove":
                             if (messageText.Length < 2) break;
-                            switch (messageText[1])
+                            switch (messageText[1].ToLower())
                             {
                                 case "player":
                                     if (messageText.Length < 3) break;
@@ -243,6 +235,7 @@ namespace TexasHoldemManagerBot
                             if (messageText.Length < 3 && messageText[1] != "blinds") break;
                             if (!uint.TryParse(messageText[2], out var blindToSet)) break;
                             Game.SetBlinds(blindToSet);
+                            await Bot.SendTextMessageAsync(message.Chat.Id, $"Small blind: {Game.SmallBlind}, big blind: {Game.BigBlind}");
                             break;
 
                         case "restart":
@@ -294,10 +287,10 @@ Set blinds [amount]
                 switch (p.State)
                 {
                     case TexasHoldemGame.Player.PlayerState.Call:
-                        infoText += $": {p.TotalBet}\n";
+                        infoText += $": {p.TotalBet} <---\n";
                         break;
                     case TexasHoldemGame.Player.PlayerState.Bet:
-                        infoText += $": {p.TotalBet}\n";
+                        infoText += $": {p.TotalBet} <---\n";
                         break;
                     case TexasHoldemGame.Player.PlayerState.Fold:
                         infoText += $": {p.TotalBet}\n";
@@ -312,7 +305,7 @@ Set blinds [amount]
 
         private static ReplyKeyboardMarkup GetPlayerReplyKeyboardMarkup(string name)
         {
-            var rkm = new ReplyKeyboardMarkup()
+            return new ReplyKeyboardMarkup()
             {
                 Keyboard = new[]
                 {
@@ -328,8 +321,6 @@ Set blinds [amount]
                 ResizeKeyboard = true,
                 Selective = true
             };
-            rkm.ResizeKeyboard = true;
-            return rkm;
         }
     }
 }
