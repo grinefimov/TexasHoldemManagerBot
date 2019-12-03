@@ -2,16 +2,19 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using NLog;
 using Telegram.Bot;
 using Telegram.Bot.Args;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
+using LogLevel = NLog.LogLevel;
 
 namespace TexasHoldemManagerBot
 {
     internal class Program
     {
+        private static Logger _logger;
         private static readonly TelegramBotClient Bot =
             new TelegramBotClient("1069876513:AAHCGIcCg0-SV8pqD18GX9yJLi7YRjC39JU");
 
@@ -19,14 +22,24 @@ namespace TexasHoldemManagerBot
 
         private static void Main(string[] args)
         {
-            var me = Bot.GetMeAsync().Result;
-            Console.WriteLine(
-                $"Hello, World! I am user {me.Id} and my name is {me.FirstName}."
-            );
+            _logger = LogManager.GetCurrentClassLogger();
+            try
+            {
+                _logger.Log(LogLevel.Info, "Start TexasHoldemManagerBot");
 
-            Bot.OnMessage += BotOnMessageReceived;
-            Bot.StartReceiving();
-            Thread.Sleep(int.MaxValue);
+                Bot.OnMessage += BotOnMessageReceived;
+                Bot.StartReceiving();
+                Thread.Sleep(int.MaxValue);
+            }
+            catch (Exception e)
+            {
+                _logger.Error(e);
+                throw;
+            }
+            finally
+            {
+                LogManager.Shutdown();
+            }
         }
 
         private static async void BotOnMessageReceived(object sender, MessageEventArgs messageEventArgs)
@@ -244,7 +257,7 @@ Set blinds [amount]
             }
             catch (Exception e)
             {
-                Console.WriteLine(e);
+                _logger.Error(e);
             }
         }
 
