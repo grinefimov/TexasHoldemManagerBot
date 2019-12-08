@@ -16,22 +16,23 @@ namespace TexasHoldemManagerBot
     {
         private static Logger _logger;
         private static readonly TelegramBotClient Bot =
-            new TelegramBotClient("1069876513:AAHCGIcCg0-SV8pqD18GX9yJLi7YRjC39JU");
-
+            new TelegramBotClient("token");
         private static TexasHoldemGame Game { get; set; }
-
         private static bool _active;
 
-        private static void Main(string[] args)
+        private static void Main()
         {
             _logger = LogManager.GetCurrentClassLogger();
             try
             {
-                _logger.Log(LogLevel.Info, "Start TexasHoldemManagerBot");
+                _logger.Log(LogLevel.Info, "Start TexasHoldemManagerBot.");
 
                 Bot.OnMessage += BotOnMessageReceived;
                 Bot.StartReceiving();
-                Thread.Sleep(int.MaxValue);
+                while (true)
+                {
+                    Thread.Sleep(int.MaxValue);
+                }
             }
             catch (Exception e)
             {
@@ -52,13 +53,12 @@ namespace TexasHoldemManagerBot
                 if (message == null || message.Type != MessageType.Text) return;
                 if (message.Text.ToLower() == "start")
                 {
-                    Game = new TexasHoldemGame();
                     _active = true;
-                    await Bot.SendTextMessageAsync(message.Chat.Id, "Game started");
+                    Game = new TexasHoldemGame();
+                    await Bot.SendTextMessageAsync(message.Chat.Id, "Manager started");
                 }
                 if (!_active) return;
                 var messageText = message.Text.Split(' ');
-
                 var player = Game.Players.FirstOrDefault(p => p.Name == messageText[0]);
                 if (player != null)
                 {
@@ -73,20 +73,15 @@ namespace TexasHoldemManagerBot
                         switch (messageText[1].ToLower())
                         {
                             case "fold":
-                                player.State = TexasHoldemGame.Player.PlayerState.Fold;
                                 player.Fold();
                                 await Bot.SendTextMessageAsync(message.Chat.Id,
                                     $"{player.Name} folds");
                                 break;
 
                             case "call":
-                                var maxBet = Game.Players.Select(p => p.TotalBet).Max();
-                                var moneyToCall = maxBet - player.TotalBet;
-                                player.Call(moneyToCall);
-                                Game.Pot += moneyToCall;
-
+                                var chipsToCall = player.Call();
                                 await Bot.SendTextMessageAsync(message.Chat.Id,
-                                    $"{player.Name} calls {moneyToCall} ({player.TotalBet}) Total Pot: {Game.Pot}");
+                                    $"{player.Name} calls {chipsToCall} ({player.TotalBet}) Total Pot: {Game.Pot}");
                                 break;
 
                             case "bet":
@@ -101,74 +96,50 @@ namespace TexasHoldemManagerBot
                                         break;
                                 }
 
-                                if (!int.TryParse(messageText[2], out var moneyToBet)) break;
-                                if ((int) Game.Pot + moneyToBet >= 0 && player.Bankroll - moneyToBet >= 0)
+                                if (!int.TryParse(messageText[2], out var chipsToBet)) break;
+                                if (player.Bet((uint) chipsToBet))
                                 {
-                                    if ((int) player.TotalBet + moneyToBet >= 0)
-                                    {
-                                        player.Bet((uint) moneyToBet);
-                                        Game.Pot += (uint) moneyToBet;
-                                    }
-                                    else
-                                        player.TotalBet = 0;
-
+                                    var info = $", Bet: {player.TotalBet}, Bank: {player.Bankroll}, Pot: {Game.Pot}";
                                     if (player.Bankroll == 0)
                                     {
                                         await Bot.SendTextMessageAsync(message.Chat.Id,
-                                            $"{player.Name} all-in {moneyToBet} ({player.TotalBet}) Total Pot: {Game.Pot}");
+                                            $"{player.Name} all-in {chipsToBet}{info}");
                                     }
                                     else
                                     {
                                         await Bot.SendTextMessageAsync(message.Chat.Id,
-                                            $"{player.Name} bets {moneyToBet} ({player.TotalBet}) Total Pot: {Game.Pot}");
+                                            $"{player.Name} bets {chipsToBet}{info}");
                                     }
                                 }
                                 break;
 
                             case "win":
-                                uint moneyToWin;
+                                uint chipsToWin;
                                 if (messageText.Length > 2)
                                 {
-                                    if (!uint.TryParse(messageText[2], out moneyToWin) ||
-                                        (int) Game.Pot - moneyToWin < 0)
-                                        break;
-                                    player.Bankroll += moneyToWin;
-                                    Game.Pot -= moneyToWin;
+                                    if (!uint.TryParse(messageText[2], out chipsToWin)) break;
+                                    if (!player.Win(chipsToWin)) break;
                                 }
                                 else
                                 {
-                                    player.Bankroll += Game.Pot;
-                                    moneyToWin = Game.Pot;
-                                    Game.Pot = 0;
+                                    chipsToWin = Game.Pot;
+                                    player.Win(chipsToWin);
                                 }
-
-                                foreach (var p in Game.Players)
-                                {
-                                    p.Ready();
-                                }
-
-                                await Bot.SendTextMessageAsync(message.Chat.Id,
-                                    $"{player.Name} wins {moneyToWin}");
+                                await Bot.SendTextMessageAsync(message.Chat.Id, $"{player.Name} wins {chipsToWin}");
                                 break;
 
                             case "all-in":
-                                var moneyToAllIn = player.Bankroll;
-                                player.Bet(moneyToAllIn);
-                                Game.Pot += moneyToAllIn;
-
+                                var chipsToAllIn = player.Bankroll;
+                                player.Bet(chipsToAllIn);
                                 await Bot.SendTextMessageAsync(message.Chat.Id,
-                                    $"{player.Name} all-in {moneyToAllIn} ({player.TotalBet}) Total Pot: {Game.Pot}");
+                                    $"{player.Name} all-in {chipsToAllIn} ({player.TotalBet}) Total Pot: {Game.Pot}");
                                 break;
 
                             case "add":
-                                if (messageText.Length < 4 || messageText[2].ToLower() != "money") break;
-                                if (!int.TryParse(messageText[3], out var moneyToAdd)) break;
-                                if ((int) player.Bankroll + moneyToAdd >= 0)
-                                    player.Bankroll += (uint) moneyToAdd;
-                                else
-                                    player.Bankroll = 0;
-                                await Bot.SendTextMessageAsync(message.Chat.Id,
-                                    $"{player.Name} gets {moneyToAdd}");
+                                if (messageText.Length < 4 || messageText[2].ToLower() != "chips") break;
+                                if (!int.TryParse(messageText[3], out var chipsToAdd)) break;
+                                if (player.AddChips(chipsToAdd))
+                                    await Bot.SendTextMessageAsync(message.Chat.Id, $"{player.Name} gets {chipsToAdd}");
                                 break;
                         }
                     }
@@ -189,53 +160,36 @@ namespace TexasHoldemManagerBot
                                     var name = messageText[2].Length > 12
                                         ? messageText[2].Substring(0, 12)
                                         : messageText[2];
-                                    if (Game.Players.FirstOrDefault(p => p.Name == name) != null)
-                                    {
+                                    if (Game.AddPlayer(name))
+                                        await Bot.SendTextMessageAsync(message.Chat.Id, $"Player {name} added");
+                                    else
                                         await Bot.SendTextMessageAsync(message.Chat.Id, $"{name} already exist");
-                                        break;
-                                    }
-
-                                    Game.Players.Add(new TexasHoldemGame.Player(name));
-                                    await Bot.SendTextMessageAsync(message.Chat.Id, $"Player {name} added");
                                     break;
 
-                                case "money":
+                                case "chips":
                                     if (messageText.Length < 3) break;
-                                    if (!int.TryParse(messageText[2], out var moneyToAdd)) break;
-                                    foreach (var p in Game.Players)
-                                    {
-                                        if ((int) p.Bankroll + moneyToAdd >= 0)
-                                            p.Bankroll += (uint) moneyToAdd;
-                                        else
-                                            p.Bankroll = 0;
-                                    }
-
-                                    await Bot.SendTextMessageAsync(message.Chat.Id,
-                                        $"Each player gets {moneyToAdd}");
+                                    if (!int.TryParse(messageText[2], out var chipsToAdd)) break;
+                                    Game.AddChips(chipsToAdd);
+                                    await Bot.SendTextMessageAsync(message.Chat.Id, $"Each player gets {chipsToAdd}");
                                     break;
                             }
-
                             break;
 
                         case "remove":
                             if (messageText.Length < 2) break;
-                            switch (messageText[1].ToLower())
+                            if (messageText[1].ToLower() == "player")
                             {
-                                case "player":
-                                    if (messageText.Length < 3) break;
-                                    Game.Players.Remove(Game.Players.FirstOrDefault(p => p.Name == messageText[2]));
-                                    await Bot.SendTextMessageAsync(message.Chat.Id,
-                                        $"Player {messageText[2]} removed");
-                                    break;
+                                if (messageText.Length < 3) break;
+                                if (Game.RemovePlayer(messageText[2]))
+                                    await Bot.SendTextMessageAsync(message.Chat.Id, $"Player {messageText[2]} removed");
                             }
-
                             break;
 
                         case "set":
                             if (messageText.Length < 3 && messageText[1] != "blinds") break;
                             if (!uint.TryParse(messageText[2], out var blindToSet)) break;
                             Game.SetBlinds(blindToSet);
-                            await Bot.SendTextMessageAsync(message.Chat.Id, $"Small blind: {Game.SmallBlind}, big blind: {Game.BigBlind}");
+                            await Bot.SendTextMessageAsync(message.Chat.Id, $"Small Blind: {Game.SmallBlind}, Big Blind: {Game.BigBlind}");
                             break;
 
                         case "restart":
@@ -245,7 +199,7 @@ namespace TexasHoldemManagerBot
 
                         case "stop":
                             _active = false;
-                            await Bot.SendTextMessageAsync(message.Chat.Id, "Game stopped");
+                            await Bot.SendTextMessageAsync(message.Chat.Id, "Manager stopped");
                             break;
 
                         case "/help":
@@ -255,12 +209,12 @@ Info
 Restart
 Add player [player]
 Remove player [player]
-Add money [amount]
+Add chips [(-)amount]
 Set blinds [amount]
-[player] add money [amount]
+[player] add chips [(-)amount]
 [player]
 [player] call
-[player] bet [amount]
+[player] bet [(-)amount]
 [player] bet Half
 [player] bet Pot
 [player] all-in
@@ -311,10 +265,14 @@ Set blinds [amount]
                 {
                     new[]
                     {
-                        new KeyboardButton($"{name} bet {Game.BigBlind}"),
+                        new KeyboardButton($"{name} bet Pot"),
+                        new KeyboardButton($"{name} bet {Game.BigBlind}")
+                    },
+                    new[]
+                    {
+                        new KeyboardButton($"{name} bet Half"),
                         new KeyboardButton($"{name} bet {Game.SmallBlind}")
                     },
-                    new[] {new KeyboardButton($"{name} bet Pot"), new KeyboardButton($"{name} bet Half")},
                     new[] {new KeyboardButton($"{name} win"), new KeyboardButton($"{name} call")},
                     new[] {new KeyboardButton("Info"), new KeyboardButton($"{name} fold")}
                 },
