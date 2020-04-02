@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
 using NLog;
 using Telegram.Bot;
 using Telegram.Bot.Args;
@@ -14,20 +15,36 @@ namespace TexasHoldemManagerBot
 {
     internal class Program
     {
+        private static IConfigurationRoot _configuration;
         private static Logger _logger;
-        private static readonly TelegramBotClient Bot =
-            new TelegramBotClient("token");
+        private static TelegramBotClient _bot;
         private static TexasHoldemGame Game { get; set; }
         private static bool _active;
 
         private static void Main()
         {
+            var builder = new ConfigurationBuilder();
+            builder.AddUserSecrets<Program>();
+            _configuration = builder.Build();
+
             _logger = LogManager.GetCurrentClassLogger();
+
+            _bot = new TelegramBotClient(_configuration["Strings:Token"]);
+            _logger.Log(LogLevel.Info, "Start TexasHoldemManagerBot.");
+            _bot.OnMessage += BotOnMessageReceived;
             try
             {
-                _logger.Log(LogLevel.Info, "Start TexasHoldemManagerBot.");
-                Bot.OnMessage += BotOnMessageReceived;
-                Bot.StartReceiving();
+                _bot.StartReceiving();
+                // Test start
+                //_logger.Log(LogLevel.Debug, "Test start.");
+                //Game = new TexasHoldemGame();
+                //_active = true;
+                //Bot.SendTextMessageAsync(468892911, "Game started");
+                //Game.AddPlayer("Alex");
+                //Game.AddChips(100);
+                //Game.SetBlinds(5);
+                //_logger.Log(LogLevel.Debug, "Test end.");
+                // Test end
                 while (true) Thread.Sleep(int.MaxValue);
             }
             catch (Exception e)
@@ -47,11 +64,11 @@ namespace TexasHoldemManagerBot
             {
                 var message = messageEventArgs.Message;
                 if (message == null || message.Type != MessageType.Text) return;
-                if (message.Text.ToLower() == "start")
+                if (message.Text.ToLower() == "thmbgstart")
                 {
                     _active = true;
                     Game = new TexasHoldemGame();
-                    await Bot.SendTextMessageAsync(message.Chat.Id, "Manager started");
+                    await _bot.SendTextMessageAsync(message.Chat.Id, "Manager started");
                 }
                 if (!_active) return;
                 var messageText = message.Text.Split(' ');
@@ -60,7 +77,7 @@ namespace TexasHoldemManagerBot
                 {
                     if (messageText.Length == 1)
                     {
-                        await Bot.SendTextMessageAsync(message.Chat.Id, $"{player.Name}'s commands",
+                        await _bot.SendTextMessageAsync(message.Chat.Id, $"{player.Name}'s commands",
                             replyMarkup: GetPlayerReplyKeyboardMarkup(player.Name),
                             replyToMessageId: message.MessageId);
                     }
@@ -70,13 +87,13 @@ namespace TexasHoldemManagerBot
                         {
                             case "fold":
                                 player.Fold();
-                                await Bot.SendTextMessageAsync(message.Chat.Id,
+                                await _bot.SendTextMessageAsync(message.Chat.Id,
                                     $"{player.Name} folds");
                                 break;
 
                             case "call":
                                 var chipsToCall = player.Call();
-                                await Bot.SendTextMessageAsync(message.Chat.Id,
+                                await _bot.SendTextMessageAsync(message.Chat.Id,
                                     $"{player.Name} calls {chipsToCall}, Bet: {player.TotalBet}, Bank: {player.Bankroll}, Pot: {Game.Pot}");
                                 break;
 
@@ -98,12 +115,12 @@ namespace TexasHoldemManagerBot
                                     var info = $", Bet: {player.TotalBet}, Bank: {player.Bankroll}, Pot: {Game.Pot}";
                                     if (player.Bankroll == 0)
                                     {
-                                        await Bot.SendTextMessageAsync(message.Chat.Id,
+                                        await _bot.SendTextMessageAsync(message.Chat.Id,
                                             $"{player.Name} all-in {chipsToBet}{info}");
                                     }
                                     else
                                     {
-                                        await Bot.SendTextMessageAsync(message.Chat.Id,
+                                        await _bot.SendTextMessageAsync(message.Chat.Id,
                                             $"{player.Name} bets {chipsToBet}{info}");
                                     }
                                 }
@@ -121,13 +138,13 @@ namespace TexasHoldemManagerBot
                                     if (!uint.TryParse(messageText[2], out chipsToWin) || !player.Win(chipsToWin))
                                         break;
                                 }
-                                await Bot.SendTextMessageAsync(message.Chat.Id, $"{player.Name} wins {chipsToWin}");
+                                await _bot.SendTextMessageAsync(message.Chat.Id, $"{player.Name} wins {chipsToWin}");
                                 break;
 
                             case "all-in":
                                 var chipsToAllIn = player.Bankroll;
                                 player.Bet(chipsToAllIn);
-                                await Bot.SendTextMessageAsync(message.Chat.Id,
+                                await _bot.SendTextMessageAsync(message.Chat.Id,
                                     $"{player.Name} all-in {chipsToAllIn} ({player.TotalBet}) Total Pot: {Game.Pot}");
                                 break;
 
@@ -135,7 +152,7 @@ namespace TexasHoldemManagerBot
                                 if (messageText.Length < 4 || messageText[2].ToLower() != "chips" ||
                                     !int.TryParse(messageText[3], out var chipsToAdd) || !player.AddChips(chipsToAdd))
                                     break;
-                                await Bot.SendTextMessageAsync(message.Chat.Id, $"{player.Name} gets {chipsToAdd}");
+                                await _bot.SendTextMessageAsync(message.Chat.Id, $"{player.Name} gets {chipsToAdd}");
                                 break;
                         }
                     }
@@ -157,16 +174,16 @@ namespace TexasHoldemManagerBot
                                         ? messageText[2].Substring(0, 12)
                                         : messageText[2];
                                     if (Game.AddPlayer(name))
-                                        await Bot.SendTextMessageAsync(message.Chat.Id, $"Player {name} added");
+                                        await _bot.SendTextMessageAsync(message.Chat.Id, $"Player {name} added");
                                     else
-                                        await Bot.SendTextMessageAsync(message.Chat.Id, $"{name} already exist");
+                                        await _bot.SendTextMessageAsync(message.Chat.Id, $"{name} already exist");
                                     break;
 
                                 case "chips":
                                     if (messageText.Length < 3) break;
                                     if (!int.TryParse(messageText[2], out var chipsToAdd)) break;
                                     Game.AddChips(chipsToAdd);
-                                    await Bot.SendTextMessageAsync(message.Chat.Id, $"Each player gets {chipsToAdd}");
+                                    await _bot.SendTextMessageAsync(message.Chat.Id, $"Each player gets {chipsToAdd}");
                                     break;
                             }
                             break;
@@ -177,7 +194,7 @@ namespace TexasHoldemManagerBot
                             {
                                 if (messageText.Length < 3) break;
                                 if (Game.RemovePlayer(messageText[2]))
-                                    await Bot.SendTextMessageAsync(message.Chat.Id, $"Player {messageText[2]} removed");
+                                    await _bot.SendTextMessageAsync(message.Chat.Id, $"Player {messageText[2]} removed");
                             }
                             break;
 
@@ -185,18 +202,18 @@ namespace TexasHoldemManagerBot
                             if (messageText.Length < 3 && messageText[1] != "blinds") break;
                             if (!uint.TryParse(messageText[2], out var blindToSet)) break;
                             Game.SetBlinds(blindToSet);
-                            await Bot.SendTextMessageAsync(message.Chat.Id,
+                            await _bot.SendTextMessageAsync(message.Chat.Id,
                                 $"Small Blind: {Game.SmallBlind}, Big Blind: {Game.BigBlind}");
                             break;
 
                         case "restart":
                             Game.Restart();
-                            await Bot.SendTextMessageAsync(message.Chat.Id, "New game started");
+                            await _bot.SendTextMessageAsync(message.Chat.Id, "New game started");
                             break;
 
-                        case "stop":
+                        case "thmbgstop":
                             _active = false;
-                            await Bot.SendTextMessageAsync(message.Chat.Id, "Manager stopped");
+                            await _bot.SendTextMessageAsync(message.Chat.Id, "Manager stopped");
                             break;
 
                         case "/help":
@@ -218,7 +235,7 @@ Set blinds [amount]
 [player] fold
 [player] win
 [player] win [amount]";
-                            await Bot.SendTextMessageAsync(message.Chat.Id, helpText);
+                            await _bot.SendTextMessageAsync(message.Chat.Id, helpText);
                             break;
                     }
                 }
@@ -251,7 +268,7 @@ Set blinds [amount]
                         break;
                 }
             }
-            await Bot.SendTextMessageAsync(message.Chat.Id, Game.Players.Count > 0 ? infoText : "No players");
+            await _bot.SendTextMessageAsync(message.Chat.Id, Game.Players.Count > 0 ? infoText : "No players");
         }
 
         private static ReplyKeyboardMarkup GetPlayerReplyKeyboardMarkup(string name)
